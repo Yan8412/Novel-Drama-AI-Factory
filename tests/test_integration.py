@@ -19,6 +19,9 @@ class IntegrationTest(unittest.TestCase):
         sha = lambda value: hashlib.sha256(value).hexdigest().upper()
         self.shot = ShotContract("synthetic-shot", "synthetic-provider", "synthetic-model",
             requires_start=True, requires_end=True, character_count=1,
+            identity_lock=False, multi_actor_contact=False, load_transfer=False,
+            critical_prop_lifecycle=False, intermediate_keyframes_verified=False,
+            motion_reference_verified=False, frozen=False, already_submitted=False,
             canonical_input_id="synthetic-canonical", canonical_input_sha256="A" * 64,
             approval_record_id="synthetic-approval", allowed_modes=(Mode.F2F,),
             preferred_mode=Mode.F2F, max_cost=Decimal("10"), billing_unit="synthetic-unit",

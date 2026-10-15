@@ -1,7 +1,8 @@
 import unittest
 from dataclasses import replace
+import novel_drama_candidate.motion_contract as motion
 from novel_drama_candidate.motion_contract import (
-    Observation, MotionPhase, check_object_lifecycle, check_contact_phases)
+    Observation, MotionPhase, PhaseCoverage, check_object_lifecycle, check_contact_phases)
 
 
 class MotionContractTest(unittest.TestCase):
@@ -52,7 +53,8 @@ class MotionContractTest(unittest.TestCase):
         findings = check_object_lifecycle([Observation(1000, "prop-a", "EXITED"),
             Observation(1200, "prop-a", "ACTIVE", "verified movement into the frame", True)])
         self.assertEqual([(f.rule, f.status) for f in findings],
-                         [("OBJECT_RETURN_EXPLAINED", "PASS")])
+                         [("OBJECT_RETURN_EXPLAINED", "PASS"),
+                          ("OBJECT_SAMPLE_COVERAGE_UNVERIFIED", "UNVERIFIED")])
 
     def test_invalid_object_time_fails_without_sorting_error(self):
         for at_ms in (-1, "1000", None, float("nan"), float("inf"), True):
@@ -76,12 +78,14 @@ class MotionContractTest(unittest.TestCase):
             with self.subTest(before=before, after=after):
                 findings = check_contact_phases([MotionPhase(0, 500, "A", "rise",
                     support_before=before, support_after=after)])
-                self.assertEqual([(f.rule, f.status) for f in findings],
-                                 [("SUPPORT_STATES_REQUIRED", "UNVERIFIED")])
+                self.assertIn(("SUPPORT_STATES_REQUIRED", "UNVERIFIED"),
+                              [(f.rule, f.status) for f in findings])
 
     def test_unchanged_explicit_support_statically_passes(self):
         findings = check_contact_phases([MotionPhase(0, 500, "A", "hold",
-            support_before="wall", support_after="wall")])
+            assistance_required=False, helper_contact_explicit=False, helper_force_explicit=False,
+            support_before="wall", support_after="wall", support_transition_evidenced=False)],
+            coverage=PhaseCoverage(0, 500, ("A",)))
         self.assertEqual(findings[0].status, "PASS")
 
     def test_missing_support_does_not_hide_true_interval_failure(self):
@@ -164,24 +168,173 @@ class MotionContractTest(unittest.TestCase):
 
     def test_assistance_without_visible_force_fails(self):
         findings = check_contact_phases([MotionPhase(0, 500, "A", "assisted ascent",
-                                                     assistance_required=True, helper_contact_explicit=True)])
+                                                     assistance_required=True, helper_contact_explicit=True,
+                                                     helper_force_explicit=False)])
         self.assertTrue(any(x.rule == "HELPER_FORCE_CAUSALITY" for x in findings))
 
     def test_unproved_load_transfer_fails(self):
         findings = check_contact_phases([MotionPhase(0, 500, "A", "leave support",
-                                                     support_before="basket", support_after="grip")])
+                                                     support_before="basket", support_after="grip",
+                                                     support_transition_evidenced=False)])
         self.assertTrue(any(x.rule == "LOAD_TRANSFER_CAUSALITY" for x in findings))
 
     def test_causal_phase_statically_passes(self):
         findings = check_contact_phases([MotionPhase(0, 500, "A", "assisted lift",
                                                      assistance_required=True, helper_contact_explicit=True,
                                                      helper_force_explicit=True, support_before="basket",
-                                                     support_after="grip", support_transition_evidenced=True)])
+                                                     support_after="grip", support_transition_evidenced=True)],
+                                        coverage=PhaseCoverage(0, 500, ("A",)))
         self.assertEqual(findings[0].status, "PASS")
 
     def test_bad_time_fails(self):
         findings = check_contact_phases([MotionPhase(100, 100, "A", "invalid")])
         self.assertEqual(findings[0].status, "FAIL")
+
+
+class MotionReviewRegressionTest(unittest.TestCase):
+    @staticmethod
+    def phase(begin=0, end=1000, actor="actor-a", **changes):
+        values = dict(assistance_required=False, helper_contact_explicit=False,
+                      helper_force_explicit=False, support_before="ground",
+                      support_after="ground", support_transition_evidenced=False)
+        values.update(changes)
+        return MotionPhase(begin, end, actor, "hold", **values)
+
+    def coverage(self, begin=0, end=1000, actors=("actor-a",)):
+        coverage_type = getattr(motion, "PhaseCoverage", None)
+        self.assertIsNotNone(coverage_type, "Explicit coverage API is required")
+        return coverage_type(begin, end, actors)
+
+    def test_omitted_risk_and_evidence_flags_are_unknown(self):
+        phase = MotionPhase(0, 1000, "actor-a", "hold", support_before="ground", support_after="ground")
+        for field in ("assistance_required", "helper_contact_explicit", "helper_force_explicit",
+                      "support_transition_evidenced"):
+            self.assertIsNone(getattr(phase, field), field)
+        self.assertIn("UNVERIFIED", [f.status for f in check_contact_phases([phase])])
+
+    def test_explicit_phase_without_coverage_is_not_full_continuity_pass(self):
+        findings = check_contact_phases([self.phase()])
+        self.assertIn("UNVERIFIED", [f.status for f in findings])
+        self.assertFalse(all(f.status == "PASS" for f in findings))
+
+    def test_same_actor_out_of_order_is_not_silently_sorted(self):
+        findings = check_contact_phases([self.phase(500, 1000), self.phase(0, 500)])
+        self.assertIn("FAIL", [f.status for f in findings])
+
+    def test_same_actor_gap_blocks(self):
+        findings = check_contact_phases([self.phase(0, 400), self.phase(600, 1000)])
+        self.assertIn("FAIL", [f.status for f in findings])
+
+    def test_same_actor_overlap_blocks(self):
+        findings = check_contact_phases([self.phase(0, 700), self.phase(500, 1000)])
+        self.assertIn("FAIL", [f.status for f in findings])
+
+    def test_adjacent_support_state_cannot_change_without_phase_transfer(self):
+        findings = check_contact_phases([self.phase(0, 500), self.phase(500, 1000,
+            support_before="platform", support_after="platform")])
+        self.assertIn("FAIL", [f.status for f in findings])
+
+    def test_declared_complete_single_actor_coverage_passes_static_rules(self):
+        phases = [self.phase(0, 500), self.phase(500, 1000)]
+        findings = check_contact_phases(phases, coverage=self.coverage())
+        self.assertTrue(all(f.status == "PASS" for f in findings), findings)
+
+    def test_different_actors_can_have_parallel_tracks(self):
+        phases = [self.phase(0, 500), self.phase(0, 1000, "actor-b"), self.phase(500, 1000)]
+        findings = check_contact_phases(phases, coverage=self.coverage(actors=("actor-a", "actor-b")))
+        self.assertTrue(all(f.status == "PASS" for f in findings), findings)
+
+    def test_other_actor_cannot_fill_a_tracks_gap(self):
+        phases = [self.phase(0, 400), self.phase(0, 1000, "actor-b"), self.phase(600, 1000)]
+        findings = check_contact_phases(phases, coverage=self.coverage(actors=("actor-a", "actor-b")))
+        self.assertIn("FAIL", [f.status for f in findings])
+
+    def test_declared_partial_interval_is_scoped_not_whole_shot(self):
+        findings = check_contact_phases([self.phase(500, 1000)], coverage=self.coverage(500, 1000))
+        self.assertIn("UNVERIFIED", [f.status for f in findings])
+        self.assertFalse(all(f.status == "PASS" for f in findings))
+        self.assertIn("[500, 1000)", findings[0].explanation)
+
+    def test_missing_expected_actor_is_unverified(self):
+        findings = check_contact_phases([self.phase()], coverage=self.coverage(actors=("actor-a", "actor-b")))
+        self.assertIn("UNVERIFIED", [f.status for f in findings])
+
+    def test_undeclared_actor_blocks(self):
+        findings = check_contact_phases([self.phase(actor="actor-b")], coverage=self.coverage())
+        self.assertIn("FAIL", [f.status for f in findings])
+
+    def test_uncovered_prefix_or_suffix_fails(self):
+        for phase in (self.phase(100, 1000), self.phase(0, 900)):
+            with self.subTest(phase=phase):
+                findings = check_contact_phases([phase], coverage=self.coverage())
+                self.assertIn("FAIL", [f.status for f in findings])
+
+    def test_phase_outside_declared_interval_fails(self):
+        findings = check_contact_phases([self.phase(0, 1200)], coverage=self.coverage())
+        self.assertIn("FAIL", [f.status for f in findings])
+
+    def test_invalid_coverage_is_controlled(self):
+        for coverage in ({}, object(), "coverage"):
+            with self.subTest(coverage=coverage):
+                findings = check_contact_phases([self.phase()], coverage=coverage)
+                self.assertIn("BLOCKED", [f.status for f in findings])
+
+    def test_invalid_coverage_fields_are_controlled(self):
+        for values in ((False, 1000, ("actor-a",)), (0, 0, ("actor-a",)),
+                       (0, 1000, ()), (0, 1000, ("actor-a", "actor-a")),
+                       (0, 1000, (None,)), (0, 1000, "actor-a")):
+            with self.subTest(values=values):
+                findings = check_contact_phases([self.phase()], coverage=self.coverage(*values))
+                self.assertIn("BLOCKED", [f.status for f in findings])
+
+    def test_invalid_observation_records_are_controlled(self):
+        for record in (None, {}, object(), "observation"):
+            with self.subTest(record=type(record).__name__):
+                findings = check_object_lifecycle([record])
+                self.assertEqual(findings[0].status, "BLOCKED")
+
+    def test_invalid_observation_container_is_controlled(self):
+        for observations in (None, 42, "observations", {}):
+            with self.subTest(container=type(observations).__name__):
+                findings = check_object_lifecycle(observations)
+                self.assertEqual(findings[0].status, "BLOCKED")
+
+    def test_observation_iterator_failure_is_controlled(self):
+        def broken():
+            yield Observation(0, "prop-a", "ACTIVE")
+            raise RuntimeError("synthetic iterator failure")
+        self.assertEqual(check_object_lifecycle(broken())[0].status, "BLOCKED")
+
+    def test_malformed_observation_evidence_fields_are_controlled(self):
+        base = Observation(0, "prop-a", "ACTIVE")
+        for field, value in (("cause", None), ("cause", {}),
+                             ("verified_evidence", "False"), ("verified_evidence", 1)):
+            with self.subTest(field=field, value=value):
+                findings = check_object_lifecycle([replace(base, **{field: value})])
+                self.assertEqual(findings[0].status, "BLOCKED")
+
+    def test_invalid_phase_container_is_controlled(self):
+        for phases in (None, 42, "phases", {}):
+            with self.subTest(container=type(phases).__name__):
+                self.assertEqual(check_contact_phases(phases)[0].status, "BLOCKED")
+
+    def test_phase_iterator_failure_is_controlled(self):
+        def broken():
+            yield self.phase()
+            raise RuntimeError("synthetic iterator failure")
+        self.assertEqual(check_contact_phases(broken())[0].status, "BLOCKED")
+
+    def test_active_samples_do_not_prove_the_interval_between_them(self):
+        findings = check_object_lifecycle([Observation(0, "prop-a", "ACTIVE"),
+                                           Observation(1000, "prop-a", "ACTIVE")])
+        self.assertIn("UNVERIFIED", [f.status for f in findings])
+        self.assertFalse(all(f.status == "PASS" for f in findings))
+
+    def test_explained_exit_still_does_not_prove_whole_interval_coverage(self):
+        findings = check_object_lifecycle([Observation(0, "prop-a", "ACTIVE"),
+            Observation(1000, "prop-a", "EXITED", "verified exit path", True)])
+        self.assertIn("PASS", [f.status for f in findings])
+        self.assertIn("UNVERIFIED", [f.status for f in findings])
 
 
 if __name__ == "__main__":

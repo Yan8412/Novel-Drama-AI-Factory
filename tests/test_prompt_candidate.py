@@ -100,14 +100,32 @@ class PromptCompilerTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "ENDPOINT_FACTS"):
             compile_candidate(replace(plan, provenance=records))
 
-    def test_design_assumption_retained_in_plan_not_authenticated_by_compiler(self):
+    def test_design_assumption_retained_in_plan_but_not_emitted(self):
         plan = synthetic_plan()
         records = tuple(replace(p, kind="DESIGN_ASSUMPTION") if p.field_path == "camera_constraints" else p
                         for p in plan.provenance)
         plan = replace(plan, provenance=records)
-        self.assertIn("preserve frame geometry", compile_candidate(plan))
+        with self.assertRaisesRegex(ValueError, "UNAPPROVED_PROMPT_FACT"):
+            compile_candidate(plan)
         self.assertEqual(next(p.kind for p in plan.provenance if p.field_path == "camera_constraints"),
                          "DESIGN_ASSUMPTION")
+
+    def test_assumed_physical_evidence_is_not_rendered_as_visible_fact(self):
+        plan = synthetic_plan()
+        records = tuple(replace(p, kind="DESIGN_ASSUMPTION")
+                        if p.field_path == "beats[0].physical_evidence" else p for p in plan.provenance)
+        with self.assertRaisesRegex(ValueError, "UNAPPROVED_PROMPT_FACT"):
+            compile_candidate(replace(plan, provenance=records))
+
+    def test_other_unapproved_emitted_values_are_rejected(self):
+        plan = synthetic_plan()
+        for field in ("duration_ms", "beats[0].start_ms", "beats[0].end_ms",
+                      "beats[0].explicit_action", "prop_continuity_rule"):
+            with self.subTest(field=field):
+                records = tuple(replace(p, kind="DESIGN_ASSUMPTION") if p.field_path == field else p
+                                for p in plan.provenance)
+                with self.assertRaisesRegex(ValueError, "UNAPPROVED_PROMPT_FACT"):
+                    compile_candidate(replace(plan, provenance=records))
 
     def test_noninteger_timing_is_not_silently_rounded(self):
         for values in (dict(duration_ms=True),

@@ -21,7 +21,7 @@ class TimedBeat:
 class FactProvenance:
     """References checked upstream, not self-authenticating approval evidence.
 
-Design assumptions remain explicitly distinguishable in the sidecar plan.
+Design assumptions may remain in the sidecar plan but cannot be compiled.
 The value digest prevents a cited fact from silently changing at this boundary.
 """
     field_path: str
@@ -75,6 +75,8 @@ def _check_provenance(plan):
             raise ValueError(f"INVALID_OR_UNBOUND_PROVENANCE_{name}")
         if name in ("initial_facts", "end_facts") and record.kind != "APPROVED_FACT":
             raise ValueError("FROZEN_ENDPOINT_FACTS_CANNOT_BE_ASSUMPTIONS")
+        if record.kind != "APPROVED_FACT":
+            raise ValueError(f"UNAPPROVED_PROMPT_FACT_{name}")
 
 
 def compile_candidate(plan: TemporalPromptPlan) -> str:

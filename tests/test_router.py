@@ -18,7 +18,11 @@ def shot(**kwargs):
                   character_count=1, canonical_input_id="synthetic-input", canonical_input_sha256="A" * 64,
                   approval_record_id="synthetic-decision", allowed_modes=tuple(Mode),
                   max_cost=Decimal("10"), billing_unit="synthetic-unit", duration_ms=4000,
-                  resolution="720p", aspect="9:16", native_audio=False, output_count=1)
+                  resolution="720p", aspect="9:16", native_audio=False, output_count=1,
+                  requires_start=False, requires_end=False, identity_lock=False,
+                  multi_actor_contact=False, load_transfer=False, critical_prop_lifecycle=False,
+                  intermediate_keyframes_verified=False, motion_reference_verified=False,
+                  frozen=False, already_submitted=False)
     values.update(kwargs)
     if values.get("requires_start") is True:
         values.setdefault("start_reference_uri", "synthetic://start")
@@ -54,6 +58,20 @@ class RouterTest(unittest.TestCase):
 
     def test_missing_capability_blocked(self):
         self.assertBlocked(shot(), None)
+
+    def test_omitted_shot_classifications_do_not_inherit_false(self):
+        for field in ("requires_start", "requires_end", "identity_lock", "multi_actor_contact", "load_transfer",
+                      "critical_prop_lifecycle", "intermediate_keyframes_verified", "motion_reference_verified",
+                      "frozen", "already_submitted"):
+            with self.subTest(field=field):
+                values = vars(shot()).copy()
+                del values[field]
+                contract = ShotContract(**values)
+                self.assertBlocked(contract, evidence(contract, T2V), "SHOT_FLAGS_MUST_BE_EXPLICIT_BOOLEANS")
+
+    def test_explicit_false_classifications_remain_valid(self):
+        contract = shot()
+        self.assertEqual(route_candidate(contract, evidence(contract, T2V), NOW).status, "CANDIDATE_ONLY")
 
     def test_expired_or_future_capability_blocked(self):
         contract = shot()

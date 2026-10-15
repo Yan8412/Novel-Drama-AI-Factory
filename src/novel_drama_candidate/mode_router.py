@@ -101,16 +101,17 @@ class ShotContract:
     shot_id: str
     provider: str
     model: str
-    requires_start: bool = False
-    requires_end: bool = False
-    identity_lock: bool = False
-    multi_actor_contact: bool = False
-    load_transfer: bool = False
-    critical_prop_lifecycle: bool = False
-    intermediate_keyframes_verified: bool = False
-    motion_reference_verified: bool = False
-    frozen: bool = False
-    already_submitted: bool = False
+    # Omission is unclassified, not a verified absence of risk or restrictions.
+    requires_start: Optional[bool] = None
+    requires_end: Optional[bool] = None
+    identity_lock: Optional[bool] = None
+    multi_actor_contact: Optional[bool] = None
+    load_transfer: Optional[bool] = None
+    critical_prop_lifecycle: Optional[bool] = None
+    intermediate_keyframes_verified: Optional[bool] = None
+    motion_reference_verified: Optional[bool] = None
+    frozen: Optional[bool] = None
+    already_submitted: Optional[bool] = None
     character_count: Optional[int] = None
     canonical_input_id: str = ""
     canonical_input_sha256: str = ""
