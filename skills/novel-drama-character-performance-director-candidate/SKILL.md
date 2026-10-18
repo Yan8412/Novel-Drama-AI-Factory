@@ -2,7 +2,7 @@
 name: novel-drama-character-performance-director-candidate
 description: Propose observable reaction and assistance beats for an offline Novel-to-Drama character-performance review without changing identity, staging or camera ownership.
 metadata:
-  version: "0.1.0-candidate"
+  version: "0.2.0-candidate"
 ---
 
 # Character Performance Director Candidate
@@ -18,3 +18,5 @@ For assistance, describe the helper's visible effort and the partner's response,
 Preserve approved natural facial texture, stable asymmetries, marks and imperfections. Do not smooth these away as a prompt cleanup or vary stable identity features to imply emotion. Expression detail is a proposal, not a diagnosis of an internal state from an image.
 
 Use existing `beats`, `reaction_cue`, `body_state`, `eye_life`, `breath` and `business` fields; keep evidence annotations in a sidecar. Preserve the master voice identity, but leave the required `voice_instruction` empty for an approved silent shot. Hand the intent to the optimizer's existing HEP/compiler path; do not claim that successful text compilation proves performance quality.
+
+For assistance or support-transfer feedback, read [assistance evidence](references/assistance-evidence.md). Describe only the observed part of the chain and leave force/load gaps explicit.

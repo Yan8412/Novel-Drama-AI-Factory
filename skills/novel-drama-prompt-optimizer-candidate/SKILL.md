@@ -2,7 +2,7 @@
 name: novel-drama-prompt-optimizer-candidate
 description: Audit or prepare offline prompt and mode candidates for an explicitly requested Novel-to-Drama experiment, preserving the accepted compiler and domain-intent ownership.
 metadata:
-  version: "0.1.0-candidate"
+  version: "0.2.0-candidate"
 ---
 
 # Prompt Optimizer Candidate
@@ -21,3 +21,5 @@ For the requested revision:
 For a mode comparison or candidate compile, read [offline handoff](references/offline-handoff.md). Ordinary text review does not require routing all modes or loading every director.
 
 Return the minimal proposed delta, its evidence category, deterministic check results, and remaining uncertainty. Keep hashes, QA IDs, provenance and authorization outside creative provider prose. A candidate compile or lint PASS does not establish video quality, physical feasibility, provider support, or permission to generate.
+
+For a review using actual output failures, read [feedback and cleanup](references/feedback-cleanup.md). Keep evidence binding and candidate deltas separate from production admission.

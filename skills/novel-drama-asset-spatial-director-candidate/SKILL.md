@@ -2,7 +2,7 @@
 name: novel-drama-asset-spatial-director-candidate
 description: Review reference roles, endpoint compatibility and visibility explanations for an offline Novel-to-Drama spatial candidate while retaining unknown geometry and approved identity detail.
 metadata:
-  version: "0.1.0-candidate"
+  version: "0.2.0-candidate"
 ---
 
 # Asset Spatial Director Candidate
@@ -16,3 +16,5 @@ For endpoint or persistent-object conflicts, read [spatial evidence](references/
 Use existing `character_assets`, `scene_assets`, `prop_assets`, `topology`, `top_view`, `camera_positions`, `movement_paths`, `topology_confidence`, and `unknowns`. `CONFIRMED` requires current approved authority; geometry inferred from an image stays `INFERRED` or `UNKNOWN`. Put extra evidence links and projection assumptions in a separate review record rather than extending the installed schema.
 
 Return the narrow compatibility result and unresolved relation to the optimizer. A plausible diagram or deterministic projection does not promote hidden geometry to Canon, prove real provider capability, or authorize changing a production reference.
+
+For multi-frame prop continuity, read [world/screen ledger](references/world-screen-ledger.md). Preserve separate per-instance world requirements and screen observations.

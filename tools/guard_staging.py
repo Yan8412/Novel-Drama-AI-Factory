@@ -37,6 +37,14 @@ ALLOWED = {
     Path('skills/novel-drama-asset-spatial-director-candidate/references/spatial-evidence.md'),
     Path('src/novel_drama_candidate/integration.py'),
     Path('tests/test_integration.py'),
+    Path('src/novel_drama_candidate/qa_feedback.py'),
+    Path('tests/test_qa_feedback.py'),
+    Path('docs/FEEDBACK_ADAPTER.md'),
+    Path('docs/FEEDBACK_PROVENANCE.md'),
+    Path('skills/novel-drama-prompt-optimizer-candidate/references/feedback-cleanup.md'),
+    Path('skills/novel-drama-cinematic-video-director-candidate/references/load-and-frame-review.md'),
+    Path('skills/novel-drama-character-performance-director-candidate/references/assistance-evidence.md'),
+    Path('skills/novel-drama-asset-spatial-director-candidate/references/world-screen-ledger.md'),
 }
 DENIED_PARTS = {'90_runtime', '20_specs', '.dsh', 'secrets', 'credentials', 'private'}
 REDACTIONS = [

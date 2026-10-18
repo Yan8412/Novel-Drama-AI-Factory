@@ -1,5 +1,10 @@
 # Novel-Drama AI Factory: offline mode-routing candidate
 
+Feedback candidate extension: see [the adapter scope](docs/FEEDBACK_ADAPTER.md) and
+[source/attribution boundaries](docs/FEEDBACK_PROVENANCE.md). This branch is for
+Draft PR review, not installation or production deployment. The older acceptance
+matrix applies only to its named baseline commit; it does not certify this extension.
+
 This branch contains a reviewable extension to an existing Director -> structured
 Compiler -> Provider architecture. It is not a production replacement. It never
 creates a provider node, dispatches a generation, signs spend authorization, or
@@ -43,5 +48,11 @@ Only explicitly reviewed generic code, synthetic tests, and sanitized documents
 belong here. Production prompts, stories, media, credentials, billing, and private
 execution evidence remain outside this repository. GitHub Actions is manual only;
 this change does not dispatch it. See [source provenance](docs/EXTERNAL_SOURCE_PROVENANCE.md).
+GitHub is the code version center: controlled branch -> isolated local changes ->
+tests -> public-content review -> commit -> push -> Draft PR -> review -> human
+merge/deployment decision. Validated publishable candidates must enter this flow.
+Private media, prompts and ledgers stay in protected storage, associated with code
+by private commit/hash references. A local test does not update GitHub.
+
 The owner has not selected a license for this repository. Public visibility must
 not be interpreted as an MIT/Apache/BSD license grant for this candidate.
