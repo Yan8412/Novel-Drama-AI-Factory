@@ -5,6 +5,11 @@ Feedback candidate extension: see [the adapter scope](docs/FEEDBACK_ADAPTER.md) 
 Draft PR review, not installation or production deployment. The older acceptance
 matrix applies only to its named baseline commit; it does not certify this extension.
 
+PR #2 review fixes distinguish uncertain causal timing, bind participants/contact/
+support identities, and separate feedback metadata validity from a justified
+rewrite. See [the exact evidence contract and test scope](docs/FEEDBACK_ADAPTER.md).
+These checks do not authenticate observations or authorize Prompt changes.
+
 This branch contains a reviewable extension to an existing Director -> structured
 Compiler -> Provider architecture. It is not a production replacement. It never
 creates a provider node, dispatches a generation, signs spend authorization, or

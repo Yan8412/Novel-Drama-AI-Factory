@@ -101,7 +101,41 @@ def motion_load(events, duration_ms, warn_above=3):
                    warn_above=warn_above, events=[dict(e) for e in events])
 
 
+def _force_bindings(chain, parts):
+    """Check upstream-supplied identity links; never fill missing observations."""
+    findings = []
+    def valid(value, location):
+        if value is None or isinstance(value, str) and value.strip().upper() in ('UNKNOWN', 'UNVERIFIED'):
+            findings.append(_finding('FORCE_BINDING_REQUIRED', 'UNVERIFIED', location))
+            return False
+        if not _text(value):
+            findings.append(_finding('FORCE_BINDING_INVALID', 'BLOCKED', location))
+            return False
+        return True
+    declared = {field: valid(chain.get(field), f"{chain['id']}.{field}")
+                for field in ('actor', 'recipient', 'interaction_id', 'contact_id',
+                              'support_before_id', 'support_after_id')}
+    roles = {
+        'force_source': {'actor':'actor', 'recipient':'recipient', 'contact_id':'contact_id'},
+        'contact': {'actor':'actor', 'recipient':'recipient', 'contact_id':'contact_id'},
+        'body_response': {'actor':'recipient', 'contact_id':'contact_id'},
+        'support_before': {'actor':'recipient', 'support_id':'support_before_id'},
+        'support_after': {'actor':'recipient', 'support_id':'support_after_id'},
+        'transfer': {'actor':'recipient', 'from_support_id':'support_before_id', 'to_support_id':'support_after_id'},
+    }
+    for key, fields in roles.items():
+        if parts[key]['status'] != 'PASS':
+            continue
+        for field, target in dict(fields, interaction_id='interaction_id').items():
+            value = chain[key].get(field)
+            location = f"{chain['id']}.{key}.{field} -> {target}"
+            if valid(value, location) and declared[target] and value != chain[target]:
+                findings.append(_finding('FORCE_BINDING_MISMATCH', 'FAIL', location))
+    return findings
+
+
 def force_causal_chain(chains):
+    """actor initiates force; recipient responds. PASS is record consistency only."""
     if not _rows(chains):
         return _stop('FORCE_RECORDS_INVALID')
     if not chains:
@@ -123,10 +157,17 @@ def force_causal_chain(chains):
         observed = [chain[k] for k, v in parts.items() if v['status'] == 'PASS']
         if len({e['source_sha256'].upper() for e in observed}) > 1:
             findings.append(_finding('FORCE_MIXED_SOURCE', 'BLOCKED', 'One causal chain must refer to one source'))
+        findings.extend(_force_bindings(chain, parts))
         if parts['body_response']['status'] == 'PASS':
             for key in ('force_source', 'contact'):
-                if parts[key]['status'] == 'PASS' and chain[key]['pts_s'][0] > chain['body_response']['pts_s'][1]:
+                if parts[key]['status'] != 'PASS':
+                    continue
+                cause, response = chain[key]['pts_s'], chain['body_response']['pts_s']
+                if cause[0] > response[1]:
                     findings.append(_finding('RESPONSE_PRECEDES_CAUSE', 'FAIL', key))
+                elif cause[1] >= response[0]:
+                    findings.append(_finding('CAUSE_RESPONSE_ORDER_UNCERTAIN', 'UNVERIFIED',
+                                            f'{key}: overlapping or touching windows do not establish precedence'))
         if all(parts[k]['status'] == 'PASS' for k in ('support_before', 'transfer', 'support_after')):
             before, transfer, after = (chain[k]['pts_s'] for k in ('support_before', 'transfer', 'support_after'))
             if before[0] > transfer[1] or transfer[0] > after[1] or before[0] > after[1]:
@@ -188,7 +229,11 @@ def prop_lifecycle(records, critical_pairs):
 
 
 def qa_feedback_map(records):
-    """Bind proposals to existing QA; never relabel a known constraint as absent."""
+    """Bind QA metadata, not a justified rewrite. prompt_eligible stays false.
+
+    text_review_in_scope only selects consistent TEXT_ONLY records for review;
+    neither caller mechanism text nor a review label approves an actual edit.
+    """
     if not _rows(records):
         return _stop('FEEDBACK_RECORDS_INVALID')
     if not records:
@@ -221,7 +266,9 @@ def qa_feedback_map(records):
         if r['change_scope'] != 'TEXT_ONLY':
             findings.append(_finding('NON_TEXT_CHANGE_REQUIRES_DIRECTOR', 'HUMAN_REVIEW', r['qa_id']))
         findings.append(_finding('FEEDBACK_BINDING_ONLY', status, 'QA result preserved; proposal is not a measured improvement'))
-        output.append(dict(r, prompt_eligible=r['change_scope']=='TEXT_ONLY' and status=='PASS', director_approved=False))
+        output.append(dict(r, binding_status=status,
+                           text_review_in_scope=r['change_scope']=='TEXT_ONLY' and status=='PASS',
+                           prompt_eligible=False, rewrite_status='HUMAN_REVIEW', director_approved=False))
     return _result(findings, records=output)
 
 

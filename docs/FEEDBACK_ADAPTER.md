@@ -35,6 +35,51 @@ Run local standard-library regression tests with `PYTHONPATH=src` and
 file allowlist entries; link, replacement, containment and secret checks remain.
 No dependency installation, hosted Actions or external model is needed.
 
+## Causal evidence contract (PR #2 review 5564556151)
+
+A chain declares `actor` (force initiator), `recipient` (responding actor),
+`interaction_id`, `contact_id`, `support_before_id` and `support_after_id`.
+IDs must come from the upstream-reviewed observations, not be filled into missing
+records merely to make this check pass. Each observed part must bind the same
+`interaction_id` and source-video hash. Required per-part fields are:
+
+| Part | Bindings to the chain |
+|---|---|
+| force_source / contact | actor = actor; recipient = recipient; contact_id = contact_id |
+| body_response | actor = recipient; contact_id = contact_id |
+| support_before | actor = recipient; support_id = support_before_id |
+| support_after | actor = recipient; support_id = support_after_id |
+| transfer | actor = recipient; from_support_id = support_before_id; to_support_id = support_after_id |
+
+Missing, null, UNKNOWN or UNVERIFIED identity links remain UNVERIFIED; malformed
+IDs are BLOCKED; explicit role/contact/support contradictions FAIL. Distinct
+interactions may run concurrently. Self-assistance and a change of support object
+are not rejected merely for those properties. No field is a self-authenticating
+attestation: callers still verify identities, source integrity and observations.
+
+For each force/contact interval compared to the response, a cause wholly after
+the response FAILS. Overlapping, containing, identical or touching windows remain
+UNVERIFIED, including simultaneous point events. Only strictly separated
+cause-before-response windows establish interval precedence here. This does not
+require force before contact; an established grip may precede effort. Existing
+support-transfer checks remain in place. A scoped PASS proves consistency of the
+supplied records, not actual causation, transferred weight or whole-shot quality.
+
+## Feedback field meanings
+
+`binding_status` records metadata consistency. `text_review_in_scope` means only
+that a consistent TEXT_ONLY feedback record can enter further text review. It
+does not establish that a rewrite exists, is useful or is approved. The legacy
+`prompt_eligible` field is retained as a conservative compatibility field and is
+always false: this function does not assess an actual edit. `rewrite_status`
+remains HUMAN_REVIEW and `director_approved` remains false. Caller-supplied
+mechanism text, gap labels or review flags cannot change these results.
+
+A PRESENT_BUT_OUTPUT_FAILED record may therefore have binding_status PASS and
+text_review_in_scope true while prompt_eligible is false. Its original QA stays
+unchanged. A proposed rewrite still needs separate source/effective fidelity,
+semantic and authority review; no new execution path is provided here.
+
 ## Validation scope
 
 The isolated candidate was tested on Windows 11 build 26200, AMD64:
@@ -58,3 +103,16 @@ earlier commit. No workflow is dispatched by this publication.
 Only generic code, synthetic tests and reviewed technical guidance are published.
 Real media, production prompts, raw logs, billing and execution evidence remain
 outside this tree. Public review does not install Skills or approve production.
+
+### Review-fix validation
+
+Review baseline: `f35e8988e232bc92dbc26a8bce03501fe35a7229`. Added 26 focused tests
+before changing implementation. Against that baseline, 21 new test methods fail
+(56 assertions including subtests); 54 methods pass, with zero ERROR/SKIP. The
+original 49 methods and assertions remain. Their one full-chain positive fixture
+now supplies genuinely ordered, explicitly bound observations rather than three
+identical observation windows; its PASS assertion is unchanged.
+
+After the fix: 75/75 targeted tests PASS on Windows Python 3.13.15 and 3.14.7,
+zero FAIL/ERROR/SKIP. Full-suite historical results above remain historical; this
+review repair does not rerun CI or claim new Python 3.10/macOS runtime acceptance.

@@ -20,6 +20,27 @@ def prompt_review(source, effective, **kwargs):
         required_clauses=('Keep approved motion.',), **kwargs)
 
 
+def bound_chain():
+    """Synthetic, upstream-reviewed identity links and disjoint observations."""
+    c=dict(id='c', actor='helper', recipient='mover', interaction_id='lift-1',
+           contact_id='grip-1', support_before_id='platform', support_after_id='rail')
+    windows={'force_source':[0.2,0.3], 'contact':[0,0.1], 'body_response':[0.4,0.5],
+             'support_before':[0,0.5], 'transfer':[1,2], 'support_after':[2,3]}
+    for key,event in [('force_source','FORCE_SOURCE'),('contact','CONTACT'),
+                      ('body_response','BODY_RESPONSE'),('support_before','SUPPORT_BEFORE'),
+                      ('support_after','SUPPORT_AFTER'),('transfer','SUPPORT_TRANSFER')]:
+        c[key]=evidence(event)
+        c[key].update(pts_s=windows[key], interaction_id=c['interaction_id'],
+                      ref='synthetic.json#'+key, actor=c['recipient'])
+    for key in ('force_source','contact'):
+        c[key].update(actor=c['actor'],recipient=c['recipient'],contact_id=c['contact_id'])
+    c['body_response']['contact_id']=c['contact_id']
+    c['support_before']['support_id']=c['support_before_id']
+    c['support_after']['support_id']=c['support_after_id']
+    c['transfer'].update(from_support_id=c['support_before_id'],to_support_id=c['support_after_id'])
+    return c
+
+
 class EvidenceFeedbackTest(unittest.TestCase):
     def test_contact_not_off_lid(self):
         self.assertEqual(check_evidence_claim('FOOT_OFF_LID', evidence('FOOT_CONTACT'))['status'], 'UNVERIFIED')
@@ -47,9 +68,7 @@ class EvidenceFeedbackTest(unittest.TestCase):
         r=force_causal_chain([dict(id='c',actor='a',contact=evidence('CONTACT'))])
         self.assertEqual(r['status'],'UNVERIFIED')
     def test_force_full_records_scoped(self):
-        c=dict(id='c',actor='a')
-        for key,event in [('force_source','FORCE_SOURCE'),('contact','CONTACT'),('body_response','BODY_RESPONSE'),('support_before','SUPPORT_BEFORE'),('support_after','SUPPORT_AFTER'),('transfer','SUPPORT_TRANSFER')]:c[key]=evidence(event)
-        c['support_before']['pts_s']=[0,0.5];c['transfer']['pts_s']=[1,2];c['support_after']['pts_s']=[2,3]
+        c=bound_chain()
         self.assertEqual(force_causal_chain([c])['status'],'PASS')
     def test_force_bad_records_controlled(self):
         self.assertEqual(force_causal_chain([None])['status'],'BLOCKED')
@@ -161,5 +180,122 @@ class EvidenceFeedbackTest(unittest.TestCase):
     def feedback(self,**changes):
         row=dict(qa_id='G',historical_prompt_sha256=SHA,candidate_prompt_sha256=SHA,source_sha256=SHA,pts_s=[11/24,12/24],ref='synthetic#tail',observed_status='FAIL',constraint_status='PRESENT_BUT_OUTPUT_FAILED',constraint_present_in_source=True,change_scope='TEXT_ONLY',expected_mechanism='reorganize only; no quality guarantee')
         row.update(changes);return row
+
+
+class ReviewRegressionTest(unittest.TestCase):
+    def test_review_overlap_cannot_prove_order(self):
+        c=bound_chain()
+        for key in ('force_source','contact'):c[key]['pts_s']=[0.5,1.0]
+        c['body_response']['pts_s']=[0,1]
+        self.assertEqual(force_causal_chain([c])['status'],'UNVERIFIED')
+    def test_either_overlapping_cause_is_unverified(self):
+        for key in ('force_source','contact'):
+            with self.subTest(key=key):
+                c=bound_chain();c[key]['pts_s']=[0.3,0.6]
+                self.assertEqual(force_causal_chain([c])['status'],'UNVERIFIED')
+    def test_touching_cause_response_is_unverified(self):
+        c=bound_chain();c['force_source']['pts_s']=[0.2,0.4]
+        self.assertEqual(force_causal_chain([c])['status'],'UNVERIFIED')
+    def test_simultaneous_point_events_are_unverified(self):
+        c=bound_chain();c['force_source']['pts_s']=[0.4,0.4];c['body_response']['pts_s']=[0.4,0.4]
+        self.assertEqual(force_causal_chain([c])['status'],'UNVERIFIED')
+    def test_reversed_cause_remains_fail(self):
+        c=bound_chain();c['force_source']['pts_s']=[0.6,0.7]
+        self.assertEqual(force_causal_chain([c])['status'],'FAIL')
+    def test_ordered_bound_chain_scoped_pass(self):
+        r=force_causal_chain([bound_chain()])
+        self.assertEqual(r['status'],'PASS');self.assertFalse(r['production_admitted'])
+    def test_missing_chain_binding_is_unverified(self):
+        for field in ('recipient','interaction_id','contact_id','support_before_id','support_after_id'):
+            with self.subTest(field=field):
+                c=bound_chain();del c[field]
+                self.assertEqual(force_causal_chain([c])['status'],'UNVERIFIED')
+    def test_missing_observation_binding_is_unverified(self):
+        for key,field in (('force_source','actor'),('force_source','recipient'),('contact','contact_id'),
+                          ('body_response','actor'),('body_response','contact_id'),
+                          ('support_before','support_id'),('support_after','support_id'),
+                          ('transfer','from_support_id'),('transfer','to_support_id'),('transfer','interaction_id')):
+            with self.subTest(key=key,field=field):
+                c=bound_chain();del c[key][field]
+                self.assertEqual(force_causal_chain([c])['status'],'UNVERIFIED')
+    def test_unknown_identity_cannot_match_itself(self):
+        for value in (None,'UNKNOWN','UNVERIFIED'):
+            with self.subTest(value=value):
+                c=bound_chain();c['interaction_id']=value
+                for key in ('force_source','contact','body_response','support_before','support_after','transfer'):c[key]['interaction_id']=value
+                self.assertEqual(force_causal_chain([c])['status'],'UNVERIFIED')
+    def test_malformed_chain_binding_blocked(self):
+        for value in ([],{},True,9,''):
+            with self.subTest(value=value):
+                c=bound_chain();c['recipient']=value
+                self.assertEqual(force_causal_chain([c])['status'],'BLOCKED')
+    def test_malformed_observation_binding_blocked(self):
+        for value in ([],{},True,9,''):
+            with self.subTest(value=value):
+                c=bound_chain();c['contact']['actor']=value
+                self.assertEqual(force_causal_chain([c])['status'],'BLOCKED')
+    def test_other_force_actor_cannot_stitch(self):
+        c=bound_chain();c['force_source']['actor']='bystander'
+        self.assertEqual(force_causal_chain([c])['status'],'FAIL')
+    def test_other_force_recipient_cannot_stitch(self):
+        c=bound_chain();c['force_source']['recipient']='bystander'
+        self.assertEqual(force_causal_chain([c])['status'],'FAIL')
+    def test_other_contact_partner_cannot_stitch(self):
+        c=bound_chain();c['contact']['recipient']='bystander'
+        self.assertEqual(force_causal_chain([c])['status'],'FAIL')
+    def test_other_response_actor_cannot_stitch(self):
+        c=bound_chain();c['body_response']['actor']='bystander'
+        self.assertEqual(force_causal_chain([c])['status'],'FAIL')
+    def test_other_contact_identity_cannot_stitch(self):
+        for key in ('force_source','contact','body_response'):
+            with self.subTest(key=key):
+                c=bound_chain();c[key]['contact_id']='grip-2'
+                self.assertEqual(force_causal_chain([c])['status'],'FAIL')
+    def test_other_support_actor_cannot_stitch(self):
+        for key in ('support_before','support_after','transfer'):
+            with self.subTest(key=key):
+                c=bound_chain();c[key]['actor']='bystander'
+                self.assertEqual(force_causal_chain([c])['status'],'FAIL')
+    def test_other_support_object_cannot_stitch(self):
+        for key in ('support_before','support_after'):
+            with self.subTest(key=key):
+                c=bound_chain();c[key]['support_id']='unrelated-object'
+                self.assertEqual(force_causal_chain([c])['status'],'FAIL')
+    def test_other_transfer_support_cannot_stitch(self):
+        for field in ('from_support_id','to_support_id'):
+            with self.subTest(field=field):
+                c=bound_chain();c['transfer'][field]='unrelated-object'
+                self.assertEqual(force_causal_chain([c])['status'],'FAIL')
+    def test_same_video_other_interaction_cannot_stitch(self):
+        for key in ('force_source','contact','body_response','support_before','support_after','transfer'):
+            with self.subTest(key=key):
+                c=bound_chain();c[key]['interaction_id']='independent-lift'
+                self.assertEqual(force_causal_chain([c])['status'],'FAIL')
+    def test_unknown_observation_remains_unverified(self):
+        c=bound_chain();c['force_source']['kind']='UNKNOWN'
+        self.assertEqual(force_causal_chain([c])['status'],'UNVERIFIED')
+    def test_parallel_actor_chains_are_allowed(self):
+        a,b=bound_chain(),bound_chain();b.update(id='d',actor='helper-b',recipient='mover-b',interaction_id='lift-b')
+        for key in ('force_source','contact','body_response','support_before','support_after','transfer'):
+            b[key].update(interaction_id=b['interaction_id'],actor=b['recipient'])
+        for key in ('force_source','contact'):b[key].update(actor=b['actor'],recipient=b['recipient'])
+        self.assertEqual(force_causal_chain([a,b])['status'],'PASS')
+    def test_self_assistance_is_not_automatically_rejected(self):
+        c=bound_chain();c['actor']=c['recipient']
+        for key in ('force_source','contact'):c[key]['actor']=c['actor']
+        self.assertEqual(force_causal_chain([c])['status'],'PASS')
+    def test_bound_failure_does_not_justify_rewrite(self):
+        r=qa_feedback_map([EvidenceFeedbackTest().feedback()]);row=r['records'][0]
+        self.assertEqual(r['status'],'PASS');self.assertFalse(row['prompt_eligible'])
+        self.assertEqual(row.get('binding_status'),'PASS');self.assertTrue(row.get('text_review_in_scope'))
+        self.assertEqual(row.get('rewrite_status'),'HUMAN_REVIEW');self.assertFalse(row['director_approved'])
+    def test_claimed_mechanism_or_gap_is_not_reviewed_rewrite(self):
+        row=EvidenceFeedbackTest().feedback(constraint_present_in_source=False,constraint_status='MISSING',expected_mechanism='Caller says add a clause',reviewed=True)
+        r=qa_feedback_map([row]);self.assertFalse(r['records'][0]['prompt_eligible'])
+        self.assertEqual(r['records'][0].get('rewrite_status'),'HUMAN_REVIEW')
+    def test_uncertain_feedback_not_text_review_eligible(self):
+        row=qa_feedback_map([EvidenceFeedbackTest().feedback(pts_s=None)])['records'][0]
+        self.assertFalse(row['prompt_eligible']);self.assertFalse(row.get('text_review_in_scope'))
+        self.assertEqual(row.get('binding_status'),'UNVERIFIED')
 
 if __name__=='__main__':unittest.main()
