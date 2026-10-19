@@ -1,5 +1,11 @@
 # Novel-Drama AI Factory: offline mode-routing candidate
 
+The [default-off QA Feedback Adapter](docs/QA_FEEDBACK_ADAPTER.md) now connects
+hash-bound raw QA to one-field expression proposals and an optional local
+Compiler 1.5.1 validation probe. It retains HUMAN_REVIEW and never grants
+generation or production permission. Existing QA/Compiler implementations are
+reused without modification; real media and review evidence remain private.
+
 Feedback candidate extension: see [the adapter scope](docs/FEEDBACK_ADAPTER.md) and
 [source/attribution boundaries](docs/FEEDBACK_PROVENANCE.md). This branch is for
 Draft PR review, not installation or production deployment. The older acceptance

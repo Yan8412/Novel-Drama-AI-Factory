@@ -13,6 +13,10 @@ import unicodedata
 from pathlib import Path
 
 ALLOWED = {
+    Path('src/novel_drama_candidate/feedback_adapter.py'),
+    Path('tests/test_feedback_adapter.py'),
+    Path('tools/validate_feedback_adapter.py'),
+    Path('docs/QA_FEEDBACK_ADAPTER.md'),
     Path('README.md'), Path('MANIFEST_SHA256.txt'), Path('pyproject.toml'), Path('.gitignore'), Path('.editorconfig'),
     Path('.github/workflows/offline-cross-platform.yml'),
     Path('src/novel_drama_candidate/__init__.py'),
