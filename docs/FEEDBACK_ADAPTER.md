@@ -1,5 +1,10 @@
 # Offline feedback candidate
 
+The existing QA functions below remain unchanged. A separate, default-disabled
+[structured proposal adapter](QA_FEEDBACK_ADAPTER.md) adds the explicitly scoped
+QA -> field difference -> local Compiler verification path. Historical test
+results in this document describe their original snapshots only.
+
 This isolated extension of the existing candidate adds `qa_feedback.py`. It is
 not an installed production Skill, provider adapter, compiler replacement or QA
 authority. The original router, motion checks, prompt compiler candidate and
