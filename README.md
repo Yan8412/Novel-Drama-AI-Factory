@@ -53,6 +53,10 @@ Read [integration boundaries](docs/SKILL_INTEGRATION.md),
 [publication security](docs/GITHUB_MIGRATION_SECURITY.md).
 The `skills/` entries are candidate overlays, not installed production Skills.
 
+The default-off [native QA bridge](docs/NATIVE_QA_BRIDGE.md) verifies existing
+local QA, video/PTS/frame and Compiler provenance before calling the unchanged
+Feedback Adapter. Private evidence and semantic approval stay outside this repo.
+
 ## Publication and licensing
 
 Only explicitly reviewed generic code, synthetic tests, and sanitized documents

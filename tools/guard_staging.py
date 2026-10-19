@@ -13,6 +13,10 @@ import unicodedata
 from pathlib import Path
 
 ALLOWED = {
+    Path('src/novel_drama_candidate/native_qa_bridge.py'),
+    Path('tests/test_native_qa_bridge.py'),
+    Path('tools/export_native_qa.py'),
+    Path('docs/NATIVE_QA_BRIDGE.md'),
     Path('src/novel_drama_candidate/feedback_adapter.py'),
     Path('tests/test_feedback_adapter.py'),
     Path('tools/validate_feedback_adapter.py'),
